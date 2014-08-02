@@ -1,0 +1,3 @@
+http://feeds.washingtonpost.com/rss/rss_dc-sports-bog 
+http://feeds.washingtonpost.com/rss/rss_erik-wemple
+http://feedproxy.google.com/PetaPixel

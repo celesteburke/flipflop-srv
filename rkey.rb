@@ -11,6 +11,7 @@ require 'fast_stemmer'
 require 'pismo'
 require 'pp' 
 require 'twitter' 
+require_relative 'rss_functions' 
 
 class RKeywords
 
@@ -45,27 +46,31 @@ class RKeywords
       
       cmd_line = parse_options(ARGV)
       
-      #puts "params are #{cmd_line[0].inspect}"
-      #puts "files are #{cmd_line[1].inspect}"
       
-      # Get web page 
-      response = get_url(cmd_line[1][0])
+      feeds = File.readlines('rssfeeds.txt').each {|l| l.chomp!}
 
-      # Page contents are available in response.body 
-      #puts "Content Type: " + response.content_type
-      get_encoding(response["content-type"])
-      body_text = get_body_text(response.body)
-      title_text = get_title_text(response.body)
-      stop_words = get_stop_words
+      feeds.each do |feed|
+        rss = FeedNormalizer::FeedNormalizer.parse open(feed)
+        rss.entries.take(5).each do |entry|
+          ## Page contents are available in response.body 
+          ##puts "Content Type: " + response.content_type
+          #get_encoding(response["content-type"])
+          #body_text = get_body_text(response.body)
+          #title_text = get_title_text(response.body)
+          stop_words = get_stop_words
 
-      doc = Pismo::Document.new(cmd_line[1][0])
+          doc = Pismo::Document.new(entry.url)
+          puts "title: " + doc.title
+          pp doc.keywords[0,5]
+          
+          # Remove any stop words first & get tweets
+          keywords = (doc.keywords.map{|row| row[0]} - stop_words)[0,5]
+          if !keywords.empty?
+            get_tweets((doc.keywords.map{|row| row[0]} - stop_words)[0,5])
+          end
+        end  
+      end
 
-      puts "title: " + doc.title
-      pp doc.keywords[0,5]
-      
-      # Remove any stop words first & get tweets
-      get_tweets((doc.keywords.map{|row| row[0]} - stop_words)[0,5])
-      
     else
       puts "Couldn't parse options, die!"
     end
@@ -82,12 +87,29 @@ class RKeywords
 
     keywords.each do |keyword|
       search_str = "##{keyword}"
-      puts "==== Search String: #{search_str}"
-      client.search(search_str, :lang => 'EN').take(3).collect do |tweet|
+      tweets = client.search(search_str, :lang => 'EN')
+      
+      if tweets.count != 0
+        puts "==== Search String: #{search_str}"  
+        tweets.take(3).collect do |tweet|
+          puts "Tweet: #{tweet.text}"
+        end
+        puts "--------------------------------" 
+      end
+    end
+
+    search_str = keywords[0, 3].join(" OR ")
+    pp search_str
+    tweets = client.search(search_str, :lang => 'EN')
+      
+    if tweets.count != 0
+      puts "==== Search String: #{search_str}"  
+      tweets.take(3).collect do |tweet|
         puts "Tweet: #{tweet.text}"
       end
       puts "--------------------------------" 
     end
+
   end
   def get_title_keywords(title_text)
     puts "\n=== Title Keywords ===\n"
