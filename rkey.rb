@@ -12,6 +12,8 @@ require 'pismo'
 require 'pp' 
 require 'twitter' 
 require_relative 'rss_functions' 
+require 'tweetstream'
+require 'timeout'
 
 class RKeywords
 
@@ -46,29 +48,34 @@ class RKeywords
       
       cmd_line = parse_options(ARGV)
       
-      
       feeds = File.readlines('rssfeeds.txt').each {|l| l.chomp!}
+      keywords = []
+      hashtag_keywords = []
 
+      # Take 5 entries per feed and get keywords from them
+      # Output the keywords and hashtags to files
       feeds.each do |feed|
         rss = FeedNormalizer::FeedNormalizer.parse open(feed)
         rss.entries.take(5).each do |entry|
-          ## Page contents are available in response.body 
-          ##puts "Content Type: " + response.content_type
-          #get_encoding(response["content-type"])
-          #body_text = get_body_text(response.body)
-          #title_text = get_title_text(response.body)
           stop_words = get_stop_words
 
           doc = Pismo::Document.new(entry.url)
-          puts "title: " + doc.title
-          pp doc.keywords[0,5]
+          puts "title: #{doc.title}"
           
-          # Remove any stop words first & get tweets
-          keywords = (doc.keywords.map{|row| row[0]} - stop_words)[0,5]
-          if !keywords.empty?
-            get_tweets((doc.keywords.map{|row| row[0]} - stop_words)[0,5])
+          # Remove any stop words & append to keywords & hashtags arrays 
+          (doc.keywords.map{|row| row[0]} - stop_words).take(5).each do |keyword|
+            keywords << keyword
+            hashtag_keywords << "##{keyword}"
           end
         end  
+      end
+
+      File.open("keywords.out.txt", "w+") do |f|
+        keywords.uniq.each { |element| f.puts(element) }
+      end
+
+      File.open("keywords.hashtags.out.txt", "w+") do |f|
+        hashtag_keywords.uniq.each { |element| f.puts(element) }
       end
 
     else
@@ -76,70 +83,10 @@ class RKeywords
     end
     
   end
-
-  def get_tweets(keywords)
-    client = Twitter::REST::Client.new do |config|
-      config.consumer_key        = ENV["CONSUMER_KEY"]
-      config.consumer_secret     = ENV["CONSUMER_SECRET"]
-      config.access_token        = ENV["ACCESS_TOKEN"]
-      config.access_token_secret = ENV["ACCESS_TOKEN_SECRET"]
-    end
-
-    keywords.each do |keyword|
-      search_str = "##{keyword}"
-      tweets = client.search(search_str, :lang => 'EN')
-      
-      if tweets.count != 0
-        puts "==== Search String: #{search_str}"  
-        tweets.take(3).collect do |tweet|
-          puts "Tweet: #{tweet.text}"
-        end
-        puts "--------------------------------" 
-      end
-    end
-
-    search_str = keywords[0, 3].join(" OR ")
-    pp search_str
-    tweets = client.search(search_str, :lang => 'EN')
-      
-    if tweets.count != 0
-      puts "==== Search String: #{search_str}"  
-      tweets.take(3).collect do |tweet|
-        puts "Tweet: #{tweet.text}"
-      end
-      puts "--------------------------------" 
-    end
-
-  end
-  def get_title_keywords(title_text)
-    puts "\n=== Title Keywords ===\n"
-  end
-
   def get_stop_words
     stop_words = File.readlines('stop_words.out.txt').each {|l| l.chomp!}
     # Testing stemmer by stemming stop words list
     #stop_words.each { |x| puts x.stem }
-  end
-
-  def get_body_text(html)
-    # options m:dot matches newline 
-    # i: insensitive
-    # u: force UTF8 for pattern & string
-    /<body[^>]*?>.*?<\/body>/miu =~ html.force_encoding('iso-8859-1').encode('utf-8') 
-    return $&
-  end
-
-  def get_title_text(html)
-    # options m:dot matches newline 
-    # i: insensitive
-    # u: force UTF8 for pattern & string
-    /<title[^>]*?>.*?<\/title>/miu =~ html.force_encoding('iso-8859-1').encode('utf-8') 
-    return $&
-  end
-
-  def get_encoding(header)
-    /charset=(.*)/ =~ header
-    puts "Encoding: " + $~[1]
   end
 
   def output_options
@@ -147,15 +94,6 @@ class RKeywords
     @options.marshal_dump.each do |name, val|        
       puts "  #{name} = #{val}"
     end
-  end
-
-  def get_url(url)
-    uri = URI.parse(url)
-
-    http = Net::HTTP.new(uri.host, uri.port)
-    request = Net::HTTP::Get.new(uri.request_uri)
-
-    response = http.request(request)
   end
 end
 
