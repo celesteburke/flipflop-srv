@@ -3,17 +3,9 @@
 require 'optparse'
 require 'date' 
 require 'ostruct' 
-require 'net/http'
-require 'uri'
-require 'net/http'
-require 'rubygems'
-require 'fast_stemmer'
 require 'pismo'
-require 'pp' 
-require 'twitter' 
-require_relative 'rss_functions' 
-require 'tweetstream'
-require 'timeout'
+require 'feed-normalizer'
+require 'open-uri'
 
 class RKeywords
 
