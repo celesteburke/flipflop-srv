@@ -26,34 +26,15 @@ class RKeywords
     @verbose = false
   end
 
-
-  def parse_options(argv)
-    params = {}
-    parser = OptionParser.new 
-
-    parser.on("-t") { params[:title_text] = true }
-
-    files = parser.parse(argv)
-
-    [params, files]
-  end
-
-  def arguments_valid
-    return true
-  end
-
   def run
-    if arguments_valid
-      output_options if @options.verbose # [Optional]
-      
-      cmd_line = parse_options(ARGV)
-      
-      feeds = File.readlines('rssfeeds.txt').each {|l| l.chomp!}
+    if ARGV.count == 2
+      feeds = File.readlines(ARGV[0]).each {|l| l.chomp!}
       keywords = []
       hashtag_keywords = []
-
+      feeds_key_file = File.open("rss_with_keywords.out.txt", "w+")
+      
       # Take 5 entries per feed and get keywords from them
-      # Output the keywords and hashtags to files
+      # Output the keywords to files
       feeds.each do |feed|
         rss = FeedNormalizer::FeedNormalizer.parse open(feed)
         rss.entries.take(5).each do |entry|
@@ -61,39 +42,31 @@ class RKeywords
 
           doc = Pismo::Document.new(entry.url)
           puts "title: #{doc.title}"
-          
-          # Remove any stop words & append to keywords & hashtags arrays 
+          feeds_key_file.puts("title: #{doc.title}")
+          feeds_key_file.puts((doc.keywords.map{|row| row[0]} - stop_words)[0,5])
+
+          # Remove any stop words & append to keywords array
           (doc.keywords.map{|row| row[0]} - stop_words).take(5).each do |keyword|
             keywords << keyword
-            hashtag_keywords << "##{keyword}"
           end
         end  
       end
 
+      feeds_key_file.close()
+
       File.open("keywords.out.txt", "w+") do |f|
         keywords.uniq.each { |element| f.puts(element) }
       end
-
-      File.open("keywords.hashtags.out.txt", "w+") do |f|
-        hashtag_keywords.uniq.each { |element| f.puts(element) }
-      end
-
     else
-      puts "Couldn't parse options, die!"
+      puts "rkey.rb: missing file argument"
+      puts "Usage:  rkey.rb [rssfeeds.txt] [stop_words.txt]"
     end
     
   end
   def get_stop_words
-    stop_words = File.readlines('stop_words.out.txt').each {|l| l.chomp!}
+    stop_words = File.readlines(ARGV[1]).each {|l| l.chomp!}
     # Testing stemmer by stemming stop words list
     #stop_words.each { |x| puts x.stem }
-  end
-
-  def output_options
-    puts "Options:\n"
-    @options.marshal_dump.each do |name, val|        
-      puts "  #{name} = #{val}"
-    end
   end
 end
 
