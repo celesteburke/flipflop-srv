@@ -46,25 +46,22 @@ class RKeywords
       config.auth_method        = :oauth
     end
 
-    #begin
-      #complete_results = Timeout.timeout(120) do
-
     i = 0
-    TweetStream::Client.new.on_delete{ |status_id, user_id|
-      puts "Deleting Tweet: #{status_id}"
-      Tweet.delete(status_id)
-    }.on_limit { |skip_count|
-      puts "Rate Limited: #{skip_count}"
-    }.track(keywords) do |status|
+    client = TweetStream::Client.new
+    client.track(keywords) do |status, client|
       i += 1
+      puts "#{status.text}"
       Tweet.create(text: "#{status.text}")
-      client.stop if i >= 2
+      client.stop if i >= options[:num_tweets] 
     end
 
-    #end
-    #rescue Timeout::Error
-    #  puts 'Getting Tweets timed out.'
-    #end
+    client.on_limit do |skip_count|
+      puts "Rate Limited: #{skip_count}"
+    end
+    
+    client.on_error do |message|
+      puts "ERROR: #{message}"
+    end
   end
 end
 
